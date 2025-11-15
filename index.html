@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <title>BV Orkestrator</title>
+  </head>
+  <body>
+    <h1>Bolagsverket – Orkestrator</h1>
+
+    <button id="bv-start-btn">Starta/fortsätt BV-körning</button>
+
+    <div style="margin-top:1rem;">
+      <div id="bv-progress-text">Ingen körning ännu.</div>
+      <div id="bv-last-orgnr"></div>
+      <div id="bv-finished-flag" style="margin-top:0.5rem;"></div>
+    </div>
+
+    <script>
+      let bvRunning = false;
+
+      async function stepBolagsverketJob() {
+        const res = await fetch("/api/bv/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          console.error("Fel från /api/bv/step:", res.status, txt);
+          throw new Error("API-fel: " + res.status);
+        }
+
+        const status = await res.json();
+        return status;
+      }
+
+      function updateBolagsverketUi(status) {
+        const progressEl = document.getElementById("bv-progress-text");
+        const lastEl = document.getElementById("bv-last-orgnr");
+        const finishedEl = document.getElementById("bv-finished-flag");
+
+        const total = status.total || 0;
+        const done = status.done || 0;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+        if (progressEl) {
+          progressEl.textContent = `Klar: ${done}/${total} (${pct}%)`;
+        }
+
+        if (lastEl && status.lastProcessedOrgnr) {
+          const okText = status.lastOk ? "OK" : "FEL";
+          lastEl.textContent =
+            `Senast: ${status.lastProcessedOrgnr} – ` +
+            `${okText} (${status.lastStatus})`;
+        }
+
+        if (finishedEl) {
+          finishedEl.textContent = status.finished ? "Klart ✅" : "";
+        }
+      }
+
+      async function runBolagsverketUntilDone() {
+        if (bvRunning) return;
+        bvRunning = true;
+
+        const btn = document.getElementById("bv-start-btn");
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "Kör BV-jobb (pågår...)";
+        }
+
+        try {
+          let finished = false;
+
+          while (!finished) {
+            const status = await stepBolagsverketJob();
+            updateBolagsverketUi(status);
+
+            finished = status.finished === true;
+            if (!finished) {
+              // lite paus mellan batcharna
+              await new Promise((r) => setTimeout(r, 2000));
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Fel vid BV-körning. Se console.log för detaljer.");
+        } finally {
+          bvRunning = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Starta/fortsätt BV-körning";
+          }
+        }
+      }
+
+      document
+        .getElementById("bv-start-btn")
+        .addEventListener("click", runBolagsverketUntilDone);
+    </script>
+  </body>
+</html>
