@@ -86,11 +86,11 @@
 
         if (!finished) {
           // Standard: kör på ganska snabbt
-          let delay = 200; // 0.2 sek
+          let delay = 1200;
 
           // Om senaste uppslaget gav 429 → backoff
           if (status.lastStatus === 429) {
-            delay = 60000; // 60 sek, justera efter smak
+            delay = 5000;
             console.warn("Rate limited (429), väntar", delay, "ms innan nästa försök");
           }
 
